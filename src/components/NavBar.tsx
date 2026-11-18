@@ -7,13 +7,11 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material';
-import LayersRoundedIcon from '@mui/icons-material/LayersRounded';
 import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 
 const links = [
   { label: 'Home', to: '/' },
-  { label: 'Example Page', to: '/example' },
   { label: 'Answer List', to: '/answerlist' },
   { label: 'Three Rounds to Four', to: '/threeToFour' },
   { label: 'Round To Last Letter Round', to: '/roundToLastLetter' },

@@ -8,7 +8,6 @@ import {
 import { Link as RouterLink, Route, Routes } from 'react-router-dom';
 import NavBar from './components/NavBar';
 import Home from './pages/Home';
-import Example from './pages/Example';
 import AnswerList from './pages/AnswerList';
 import ThreeToFour from './pages/ThreeToFour';
 import RoundToLastLetter from './pages/RoundToLastLetter';
@@ -48,7 +47,6 @@ export default function App() {
       >
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/example" element={<Example />} />
           <Route path="/answerlist" element={<AnswerList />} />
           <Route path="/threeToFour" element={<ThreeToFour />} />
           <Route path="/roundToLastLetter" element={<RoundToLastLetter />} />
