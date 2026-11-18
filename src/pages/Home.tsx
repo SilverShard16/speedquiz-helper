@@ -1,19 +1,8 @@
 import {
-  Alert,
   Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
   Stack,
   Typography,
 } from '@mui/material';
-import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
-import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
-import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
-import WidgetsOutlinedIcon from '@mui/icons-material/WidgetsOutlined';
-import { Link as RouterLink } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 
 export default function Home() {

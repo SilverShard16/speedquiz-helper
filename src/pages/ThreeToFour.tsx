@@ -1,21 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
   Alert,
-  Box,
   Button,
   Card,
   CardContent,
-  Chip,
   Divider,
-  IconButton,
   Stack,
   Typography,
   TextField
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
-import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
+import type { Question } from '../models/Question';
 import { importQuestionFile, exportQuestionFiles } from '../services/xmlService';
 import VisuallyHiddenInput from '../components/VisuallyHiddenInput';
 
@@ -24,16 +19,14 @@ export default function ThreeToFour() {
   const [roundName, setRoundName] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [downloadReady, setDownloadReady] = useState(false);
 
   useEffect(() => {
-    console.log(questions);
     setDownloadReady(questions.length === 60);
   }, [questions]);
 
   const handleImport = async (
-      event: ChangeEvent<HTMLInputElement>
+      event: React.ChangeEvent<HTMLInputElement>
   ) => {
       const importedFile = event.currentTarget.files?.[0];
 
@@ -41,7 +34,6 @@ export default function ThreeToFour() {
 
       setUploadedFiles(prev => [...prev, importedFile.name]);
 
-      setLoading(true);
       setError(null);
 
       try {
@@ -53,8 +45,6 @@ export default function ThreeToFour() {
                   ? err.message
                   : "Failed to import questions."
           );
-      } finally {
-          setLoading(false);
       }
   };
 
@@ -76,7 +66,6 @@ export default function ThreeToFour() {
     setQuestions([]);
     setError(null);
     setDownloadReady(false);
-    setLoading(false);
   };
 
   return (

@@ -5,9 +5,6 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
-  Divider,
-  IconButton,
   Stack,
   Typography,
   TextField,
@@ -16,9 +13,6 @@ import {
   FormControlLabel,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
-import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import type { Answer } from '../models/AnswerModels';
 import type { Question } from '../models/Question';
 import { fileToBase64 } from '../services/pictureService';
@@ -27,17 +21,15 @@ import { downloadQuestionsXml } from '../services/xmlService';
 import VisuallyHiddenInput from '../components/VisuallyHiddenInput';
 
 export default function AnswerList() {
-  const [count, setCount] = useState(0);
   const [question, setQuestion] = useState("");
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [isPictureRound, setIsPictureRound] = useState(false);
   const [showPictureInput, setShowPictureInput] = useState(false);
-  const [disableInput, setDisableInput] = useState(false);
 
-  const updateAnswers = (event) => {
+  const updateAnswers = (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.target.value;
     const split = input.split("\n");
-    const mapped = split.map((answerText) => ({
+    const mapped = split.map((answerText: string) => ({
       answerText: answerText.trim(),
       shortAnswer: getShortAnswer(answerText),
       pictureFileName: "",
@@ -46,34 +38,14 @@ export default function AnswerList() {
     setAnswers(mapped);
   };
 
-  const updateQuestionText = (event) => {
+  const updateQuestionText = (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.target.value;
     setQuestion(input);
   };
 
-  const checkAndUpdateAnswers = (newAnswers) => {
-    let mappedAnswers = [];
-    for(let i = 0; i < newAnswers.length; i++) {
-      if(answers[i].answerText !== newAnswers[i]) {
-        mappedAnswers.push({
-          answerText: newAnswers[i].trim(),
-          shortAnswer: getShortAnswer(newAnswers[i].trim()),
-          pictureFileName: "",
-          pictureBaseString: "",
-        });
-      } else {
-        mappedAnswers.push(answers[i]);
-      }
-    }
+  const uploadPicture = async (event: React.ChangeEvent<HTMLInputElement>, index: number) => {
+    const file = event.currentTarget.files?.[0];
 
-    return mappedAnswers;
-  };
-
-  const updateSetAnswers = (newAnswers: Answer[]) => {
-    setAnswers(newAnswers);
-  };
-
-  const uploadPicture = async (file, index) => {
     if (!file) return;
 
     const baseString = await fileToBase64(file);
@@ -91,7 +63,7 @@ export default function AnswerList() {
     );
   };
 
-  const removePicture = (index) => {
+  const removePicture = (index: number) => {
     setAnswers(prev =>
         prev.map((answer, i) =>
             i === index
@@ -105,21 +77,12 @@ export default function AnswerList() {
     );
   };
 
-  const setPictureRound = (newBool: boolean) => {
-    if(!newBool && showPictureInput) {
-      setShowPictureInput(false);
-    }
-    setIsPictureRound(newBool)
-  };
-
   const allPicturesAssigned = () => {
     return answers.filter((answer) => answer.pictureBaseString === "").length === 0;
   };
 
   const createQuestionsArray = () => {
     let questionArray: Question[] = [];
-
-    console.log(question);
 
     for(let i = 0; i < answers.length; i++) {
       let qInfo = {
@@ -149,12 +112,10 @@ export default function AnswerList() {
   };
 
   const clearFields = () => {
-    setCount(0);
     setQuestion("");
     setAnswers([]);
     setIsPictureRound(false);
     setShowPictureInput(false);
-    setDisableInput(false);
   };
 
   return (
@@ -296,8 +257,7 @@ export default function AnswerList() {
                       type="file"
                       accept="image/*"
                       onChange={(event) => {
-                        const file = event.currentTarget.files?.[0];
-                        uploadPicture(file, index);
+                        uploadPicture(event, index);
                         event.currentTarget.value = '';
                       }}
                     />

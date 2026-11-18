@@ -1,4 +1,4 @@
-import type { Question } from '../models/Question';
+import type { Question, QuestionInfo, MultipleChoiceQuestion, SequenceQuestion, StandardQuestion } from '../models/Question';
 
 const escapeXml = (value: string): string => {
     return value
@@ -146,8 +146,6 @@ const getOptions = (question: Element): string[] => {
 
 export const xmlToQuestions = (xml: string): Question[] => {
     const parser = new DOMParser();
-
-    const indexOfQuestionsTag = xml.indexOf("<questions>");
 
     const safeXml = xml.replace(/ & /g, " and ").trim();
 
@@ -297,7 +295,7 @@ export const importQuestionFiles = async (
 
 export const importQuestionFile = async (
     file: File
-): Question[] => {
+): Promise<Question[]> => {
     const xml = await file.text();
     return xmlToQuestions(xml);
 };

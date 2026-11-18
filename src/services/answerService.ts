@@ -1,5 +1,3 @@
-import type { Answer } from '../models/Answer';
-
 export function getShortAnswer(answerText: string): string {
     let startsWithSkippedWord = answerText.indexOf("The ") === 0 || answerText.indexOf("A ") === 0;
 
@@ -10,12 +8,3 @@ export function getShortAnswer(answerText: string): string {
 
     return answerText.substring(0, 1);
 }
-
-// export function safeMergeAnswers(existingAnswers: Answer[], newAnswers: string[]): Answer[] {
-//     let mergedAnswers = [];
-
-// }
-
-// function getIterationOfAnswer(answerText: string): number {
-
-// }
