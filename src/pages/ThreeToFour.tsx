@@ -148,13 +148,16 @@ export default function ThreeToFour() {
               </Button>
             </Stack>
             {error && 
-            <Alert
-              severity="error"
-              variant="outlined"
-              sx={{ maxWidth: 560, borderRadius: 2 }}
-            >
-              {error}
-            </Alert>}
+            <>
+              <Divider />
+              <Alert
+                severity="error"
+                variant="outlined"
+                sx={{ maxWidth: 560, borderRadius: 2 }}
+              >
+                {error}
+              </Alert>
+            </>}
           </Stack>
         </CardContent>
       </Card>
