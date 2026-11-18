@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import type { Question, QuestionInfo, MultipleChoiceQuestion, SequenceQuestion, StandardQuestion } from '../models/Question';
 
 const escapeXml = (value: string): string => {
@@ -220,6 +221,7 @@ export const xmlToQuestions = (xml: string): Question[] => {
             }
 
             return {
+                type: "multi",
                 questionInfo,
                 answers: {
                     answerOptions: options.map(
@@ -234,6 +236,7 @@ export const xmlToQuestions = (xml: string): Question[] => {
 
         if (userView === "sequence") {
             return {
+                type: "sequence",
                 questionInfo,
                 answer: {
                     optionsInOrder: getOptions(element)
@@ -242,6 +245,7 @@ export const xmlToQuestions = (xml: string): Question[] => {
         }
 
         return {
+            type: "standard",
             questionInfo,
             answer: {
                 answerText: getText(
@@ -284,12 +288,6 @@ export const importQuestionFiles = async (
 
     const combinedQuestions = questionArrays.flat();
 
-    if (combinedQuestions.length !== 60) {
-        throw new Error(
-            `Expected 60 questions, but found ${combinedQuestions.length}.`
-        );
-    }
-
     return combinedQuestions;
 };
 
@@ -301,47 +299,70 @@ export const importQuestionFile = async (
 };
 
 
-export const exportQuestionFiles = (
+export const exportQuestionFiles = async (
     questions: Question[],
     roundName: string
-): void => {
+): Promise<void> => {
     const numberOfFiles = 4;
-    const questionsPerFile = 15;
+    const questionsPerFile = Math.floor(questions.length / 4);
 
-    if (questions.length !== 60) {
-        throw new Error(
-            `Expected 60 questions, but found ${questions.length}.`
-        );
-    }
+    const zip = new JSZip();
 
     for (let i = 0; i < numberOfFiles; i++) {
         const start = i * questionsPerFile;
-        const end = start + questionsPerFile;
+        const end = start + (i === numberOfFiles - 1 ? questions.length - start : questionsPerFile);
 
-        const questionSubset = questions.slice(
-            start,
-            end
-        );
+        const questionSubset = questions.slice(start, end);
 
         const xml = questionsToXml(questionSubset);
 
-        const blob = new Blob([xml], {
-            type: "application/xml;charset=utf-8"
-        });
-
-        const url = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${roundName !== "" ? roundName : "questions"}_${i + 1}.sqq`;
-
-        document.body.appendChild(link);
-
-        link.click();
-        link.remove();
-
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        zip.file(`${roundName === "" ? "questions" : roundName}_${i + 1}.sqq`, xml);
     }
+
+    const zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: {
+            level: 6
+        }
+    });
+
+    const url = URL.createObjectURL(zipBlob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${roundName === "" ? "questions" : roundName}.zip`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+export const exportSingleRound = (
+    questions: Question[],
+    roundName: string
+): void => {
+    const xml = questionsToXml(questions);
+
+    const blob = new Blob([xml], {
+        type: "application/xml;charset=utf-8"
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${roundName !== "" ? roundName : "questions"}.sqq`;
+
+    document.body.appendChild(link);
+
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 

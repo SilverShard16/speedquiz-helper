@@ -4,16 +4,20 @@ import {
   Button,
   Card,
   CardContent,
+  Divider,
   Stack,
-  Typography,
+  TextField,
+  Typography
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Question } from '../models/Question';
-import { importQuestionFile } from '../services/xmlService';
+import { importQuestionFile, exportSingleRound } from '../services/xmlService';
+import { convertQuestionsToLastLetter } from '../services/answerService';
 import VisuallyHiddenInput from '../components/VisuallyHiddenInput';
 
 export default function RoundToLastLetter() {
   const [uploadedFile, setUploadedFile] = useState<string>("");
+  const [roundName, setRoundName] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +43,25 @@ export default function RoundToLastLetter() {
             );
         }
     };
+
+    const handleExport = async () => {
+      try {
+          if(questions.every((question) => question.type === "standard")) {
+            const reversedQuestions = await convertQuestionsToLastLetter(questions);
+            exportSingleRound(reversedQuestions, roundName);
+          } else {
+            throw new Error(
+              "Not all questions are letter questions"
+            );
+          }          
+      } catch (err) {
+          setError(
+              err instanceof Error
+                  ? err.message
+                  : "Failed to export questions."
+          );
+      }
+  };
 
   return (
     <Stack spacing={4}>
@@ -67,10 +90,21 @@ export default function RoundToLastLetter() {
             <Typography variant="h5" component="h2">
               Upload Round
             </Typography>
+            <Divider />
+            <TextField
+              id="outlined"
+              label="Round Name (optional)"
+              variant="outlined"
+              size="small"
+              value={roundName}
+              onChange={(event) => setRoundName(event.target.value)}
+            />
+            <Divider />
             <Typography color="text.primary" sx={{ maxWidth: 600 }}>
               {uploadedFile}
             </Typography>
-            <Button
+            <Stack direction="row" spacing={3} sx={{ width: '100%', maxWidth: 450, pt: 1 }}>
+              <Button
                 component="label"
                 variant="contained"
                 size="small"
@@ -90,6 +124,15 @@ export default function RoundToLastLetter() {
                       }}
                 />
               </Button>
+              <Button
+                variant="contained"
+                size="small"
+                disabled={questions.length === 0}
+                onClick={handleExport}
+              >
+                Download Last Letter Round
+              </Button>
+            </Stack>
               {error && 
               <Alert
               severity="error"

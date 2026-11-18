@@ -14,16 +14,19 @@ export interface QuestionInfo {
 }
 
 export interface StandardQuestion {
+    type: "standard";
     questionInfo: QuestionInfo;
     answer: GenericAnswer;
 }
 
 export interface MultipleChoiceQuestion {
+    type: "multi";
     questionInfo: QuestionInfo;
     answers: MultipleChoiceAnswers;
 }
 
 export interface SequenceQuestion {
+    type: "sequence";
     questionInfo: QuestionInfo;
     answer: SequenceAnswer;
 }
