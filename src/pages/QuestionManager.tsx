@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   Menu,
   MenuItem,
   Stack,
@@ -43,14 +42,6 @@ export default function QuestionManager() {
               getRoundKind(rounds[0].questions) === "nearest"
                 ? "Export SQN"
                 : "Export SQQ";
-
-    const selectedRound = rounds.find(
-        round => round.id === addQuestionMenu?.roundId
-    );
-
-    const selectedRoundKind = selectedRound
-        ? getRoundKind(selectedRound.questions)
-        : "mixed";
 
     const addRound = () => {
         setRounds(prev => [
@@ -211,12 +202,6 @@ export default function QuestionManager() {
     return (
         <Stack spacing={4}>
             <Stack spacing={2} alignItems="flex-start">
-                <Chip
-                    label="Example Chip"
-                    color="primary"
-                    variant="outlined"
-                />
-
                 <Typography
                     variant="h1"
                     sx={{ fontSize: { xs: 36, md: 48 } }}
