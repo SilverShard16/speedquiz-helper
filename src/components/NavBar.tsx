@@ -12,6 +12,7 @@ import { Link as RouterLink, useLocation } from 'react-router-dom';
 
 const links = [
   { label: 'Home', to: '/' },
+  { label: 'Question Manager', to:'/questionManager' },
   { label: 'Answer List', to: '/answerlist' },
   { label: 'Three Rounds to Four', to: '/threeToFour' },
   { label: 'Round To Last Letter Round', to: '/roundToLastLetter' },

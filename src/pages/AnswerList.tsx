@@ -91,6 +91,7 @@ export default function AnswerList() {
         userView: "letters",
         questionText: question,
         pictureBaseString: (isPictureRound ? answers[i].pictureBaseString : ""),
+        info: ""
       };
 
       let answerInfo = {

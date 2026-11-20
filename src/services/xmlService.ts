@@ -1,5 +1,6 @@
 import JSZip from "jszip";
-import type { Question, QuestionInfo, MultipleChoiceQuestion, SequenceQuestion, StandardQuestion } from '../models/Question';
+import type { Question, QuestionInfo, MultipleChoiceQuestion, SequenceQuestion, StandardQuestion, NumericalQuestion, Round } from '../models/Question';
+import { getRoundKind } from '../services/roundHelpers';
 
 const escapeXml = (value: string): string => {
     return value
@@ -23,6 +24,7 @@ const xmlElement = (
         : `${tabs}<${name}>${text}</${name}>`;
 };
 
+
 const questionToXml = (question: Question): string => {
     const { questionInfo } = question;
 
@@ -30,40 +32,68 @@ const questionToXml = (question: Question): string => {
     let longAnswer = "";
     let options: string[] | null = null;
 
-    if ("answers" in question) {
-        const answerOptions = question.answers.answerOptions;
+    switch (question.type) {
+        case "standard":
+            shortAnswer = question.answer.shortAnswer;
+            longAnswer = question.answer.answerText;
+            break;
 
-        options = answerOptions.map(a => a.optionText);
+        case "multi": {
+            const answerOptions = question.answers.answerOptions;
 
-        const correctIndexes = answerOptions
-            .map((a, i) => a.correct ? i : -1)
-            .filter(i => i !== -1);
+            options = answerOptions.map(a => a.optionText);
 
-        if (correctIndexes.length !== 1 ||
-            correctIndexes[0] >= 26) {
-            throw new Error(
-                `Question ${questionInfo.id} must have exactly ` +
-                "one correct answer among options A-Z."
+            const correctIndexes = answerOptions
+                .map((a, i) => a.correct ? i : -1)
+                .filter(i => i !== -1);
+
+            if (
+                correctIndexes.length !== 1 ||
+                correctIndexes[0] >= 26
+            ) {
+                throw new Error(
+                    `Question ${questionInfo.id} must have exactly ` +
+                    "one correct answer among options A-Z."
+                );
+            }
+
+            shortAnswer = String.fromCharCode(
+                65 + correctIndexes[0]
             );
+            break;
         }
 
-        shortAnswer = String.fromCharCode(
-            65 + correctIndexes[0]
-        );
+        case "sequence":
+            options = question.answer.optionsInOrder;
+            break;
+
+        case "numerical": {
+            const value = question.answer.value;
+
+            if (value === null || !Number.isFinite(value)) {
+                throw new Error(
+                    `Question ${questionInfo.id} requires a valid numerical answer.`
+                );
+            }
+
+            shortAnswer = String(value);
+            break;
+        }
+
+        case "nearest":
+            throw new Error(
+                "Nearest guess questions are not yet supported."
+            );
     }
 
-    else if ("optionsInOrder" in question.answer) {
-        options = question.answer.optionsInOrder;
-    }
-
-    else {
-        shortAnswer = question.answer.shortAnswer;
-        longAnswer = question.answer.answerText;
-    }
+    const userView =
+        question.type === "numerical"
+            ? "numbers"
+            : questionInfo.userView;
 
     const lines: string[] = [
         "\t\t<question>",
-        xmlElement("user_view", questionInfo.userView),
+        xmlElement("user_view", userView),
         xmlElement("q", questionInfo.questionText),
         xmlElement("short_answer", shortAnswer),
         xmlElement("long_answer", longAnswer)
@@ -79,9 +109,11 @@ const questionToXml = (question: Question): string => {
         lines.push("\t\t\t</options>");
     }
 
-    lines.push(
-        xmlElement("info", questionInfo.info ?? "")
-    );
+    if (question.type !== "numerical") {
+        lines.push(
+            xmlElement("info", questionInfo.info ?? "")
+        );
+    }
 
     if (questionInfo.pictureBaseString?.trim()) {
         const base64 = questionInfo.pictureBaseString
@@ -117,6 +149,58 @@ export const questionsToXml = (
 ${questionElements}
 </questions>
 </round>`;
+};
+
+export const nearestRoundToXml = (round: Round): string => {
+    if (getRoundKind(round.questions) !== "nearest") {
+        throw new Error(
+            "Nearest Wins rounds must contain only nearest guess questions."
+        );
+    }
+
+    const questionElements = round.questions.map(question => {
+        if (question.type !== "nearest") {
+            throw new Error("Invalid nearest guess question.");
+        }
+
+        const value = question.answer.value;
+
+        if (value === null || !Number.isFinite(value)) {
+            throw new Error(
+                "All nearest guess questions require a numerical answer."
+            );
+        }
+
+        return [
+            "\t\t<question>",
+            xmlElement("q", question.questionInfo.questionText),
+            xmlElement("short_answer", String(value)),
+            xmlElement("long_answer", ""),
+            ...(question.questionInfo.pictureBaseString?.trim()
+                ? [
+                    xmlElement(
+                        "picture",
+                        question.questionInfo.pictureBaseString
+                            .trim()
+                            .replace(/^data:[^,]+;base64,/i, "")
+                    )
+                ]
+                : []),
+            "\t\t</question>"
+        ].join("\n");
+    }).join("\n");
+
+    return [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        "<round>",
+        "\t<game>Nearest Wins</game>",
+        xmlElement("title", round.title, 1),
+        "\t<points_per_question>0</points_per_question>",
+        "\t<questions>",
+        questionElements,
+        "\t</questions>",
+        "</round>"
+    ].join("\n");
 };
 
 const getChild = (
@@ -242,6 +326,29 @@ export const xmlToQuestions = (xml: string): Question[] => {
                     optionsInOrder: getOptions(element)
                 }
             } satisfies SequenceQuestion;
+        }
+
+        if (userView === "numbers") {
+            const answerText = getText(
+                element,
+                "short_answer"
+            ).trim();
+
+            const value = Number(answerText);
+
+            if (answerText === "" || !Number.isFinite(value)) {
+                throw new Error(
+                    `Invalid numerical answer for question ${id}`
+                );
+            }
+
+            return {
+                type: "numerical",
+                questionInfo,
+                answer: {
+                    value
+                }
+            } satisfies NumericalQuestion;
         }
 
         return {

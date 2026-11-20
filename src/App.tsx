@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import AnswerList from './pages/AnswerList';
 import ThreeToFour from './pages/ThreeToFour';
 import RoundToLastLetter from './pages/RoundToLastLetter';
+import QuestionManager from './pages/QuestionManager';
 import { ColourModeSelector } from './components/ColourModeSelector';
 
 function NotFound() {
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/answerlist" element={<AnswerList />} />
           <Route path="/threeToFour" element={<ThreeToFour />} />
           <Route path="/roundToLastLetter" element={<RoundToLastLetter />} />
+          <Route path="/questionManager" element={<QuestionManager />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>
