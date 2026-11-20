@@ -11,10 +11,11 @@ import {
   Switch,
   FormGroup,
   FormControlLabel,
+  Tooltip,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import type { Answer } from '../models/AnswerModels';
-import type { Question } from '../models/Question';
+import type { StandardQuestion } from '../models/Question';
 import { fileToBase64 } from '../services/pictureService';
 import { getShortAnswer } from '../services/answerService';
 import { downloadQuestionsXml } from '../services/xmlService';
@@ -30,7 +31,7 @@ export default function AnswerList() {
     const input = event.target.value;
     const split = input.split("\n");
     const mapped = split.map((answerText: string) => ({
-      answerText: answerText.trim(),
+      answerText: answerText.trimStart(),
       shortAnswer: getShortAnswer(answerText),
       pictureFileName: "",
       pictureBaseString: "",
@@ -82,7 +83,7 @@ export default function AnswerList() {
   };
 
   const createQuestionsArray = () => {
-    let questionArray: Question[] = [];
+    let questionArray: StandardQuestion[] = [];
 
     for(let i = 0; i < answers.length; i++) {
       let qInfo = {
@@ -98,6 +99,7 @@ export default function AnswerList() {
       }
 
       questionArray.push({
+        type: "standard",
         questionInfo: qInfo,
         answer: answerInfo
       });
@@ -223,24 +225,28 @@ export default function AnswerList() {
                 }}
               >
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Typography
-                    noWrap
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                    }}
-                  >
-                    {answer.answerText}
-                  </Typography>
-                  <Typography
-                    noWrap
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                    }}
-                  >
-                    {answer.pictureFileName}
-                  </Typography>
+                  <Tooltip title={answer.answerText}>
+                    <Typography
+                      noWrap
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      {answer.answerText}
+                    </Typography>
+                  </Tooltip>
+                  <Tooltip title={answer.pictureFileName}>
+                    <Typography
+                      noWrap
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      {answer.pictureFileName}
+                    </Typography>
+                  </Tooltip>
 
                   <Button
                     component="label"
