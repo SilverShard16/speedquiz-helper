@@ -83,5 +83,5 @@ export const exportRounds = async (
         }
     });
 
-    downloadFile(zipBlob, "Quizsentials_Rounds.zip");
+    downloadFile(zipBlob, "Quiz_Rounds.zip");
 };

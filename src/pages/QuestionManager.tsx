@@ -181,6 +181,12 @@ export default function QuestionManager() {
             )
         );
     };
+
+    const removeRound = (roundId: string) => {
+        setRounds(prev =>
+            prev.filter(round => round.id !== roundId)
+        );
+    };
     
     const handleExport = async () => {
       setExporting(true);
@@ -220,7 +226,10 @@ export default function QuestionManager() {
             </Stack>
 
             <Stack spacing={2} sx={{ maxWidth: 660 }}>
-                {rounds.map((round, roundIndex) => (
+                {rounds.map((round, roundIndex) => {
+                  const roundKind = getRoundKind(round.questions);
+
+                  return (
                     <Card
                         key={round.id}
                         sx={{
@@ -242,45 +251,48 @@ export default function QuestionManager() {
                                 />
 
                                 <Stack spacing={2}>
-                                    {rounds.map((round, roundIndex) => {
-                                        const roundKind = getRoundKind(round.questions);
+                                    {round.questions.map((question, questionIndex) => (
+                                        <QuestionInput
+                                            key={question.clientId}
+                                            question={question}
+                                            questionNumber={questionIndex}
+                                            roundKind={getRoundKind(round.questions)}
+                                            onChange={updated =>
+                                                updateQuestion(round.id, updated)
+                                            }
+                                            onRemove={() =>
+                                                removeQuestion(round.id, question.clientId)
+                                            }
+                                        />
+                                    ))}
 
-                                        return (
-                                            <Card key={round.id}>
-                                                <CardContent>
-                                                    {round.questions.map((question, questionIndex) => (
-                                                        <QuestionInput
-                                                            key={question.clientId}
-                                                            question={question}
-                                                            questionNumber={questionIndex}
-                                                            roundKind={roundKind}
-                                                            onChange={updated =>
-                                                                updateQuestion(round.id, updated)
-                                                            }
-                                                            onRemove={() =>
-                                                                removeQuestion(round.id, question.clientId)
-                                                            }
-                                                        />
-                                                    ))}
-                                                </CardContent>
-                                            </Card>
-                                        );
-                                    })}
-
-                                    <Button
-                                        variant="text"
-                                        sx={{ alignSelf: "flex-end" }}
-                                        onClick={(event) =>
-                                            handleAddQuestion(event, round.id)
-                                        }
+                                    <Stack
+                                        direction="row"
+                                        justifyContent="space-between"
+                                        alignItems="center"
                                     >
-                                        + Add Question
-                                    </Button>
+                                        <Button
+                                            variant="text"
+                                            color="error"
+                                            onClick={() => removeRound(round.id)}
+                                        >
+                                            Remove Round
+                                        </Button>
+
+                                        <Button
+                                            variant="text"
+                                            onClick={(event) =>
+                                                handleAddQuestion(event, round.id)
+                                            }
+                                        >
+                                            + Add Question
+                                        </Button>
+                                    </Stack>
                                 </Stack>
                             </Stack>
                         </CardContent>
                     </Card>
-                ))}
+                )})}
 
                 <Button
                     variant="text"
