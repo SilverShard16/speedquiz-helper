@@ -251,7 +251,6 @@ describe("questionsToXml", () => {
     it("throws an error for an unrecognised question type", () => {
     const question = createEmptyQuestion("standard");
 
-    // Deliberately simulate invalid runtime data.
     const invalidQuestion = {
         ...question,
         type: "unsupported"

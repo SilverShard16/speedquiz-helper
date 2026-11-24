@@ -412,7 +412,6 @@ describe("hasEnteredAnswer", () => {
         ({ index, answer }) => {
             const question = createEmptyQuestion("sequence");
 
-            // Ensure that the requested position exists.
             question.answer.optionsInOrder = Array(
                 index + 1
             ).fill("");
