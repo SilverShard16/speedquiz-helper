@@ -1,10 +1,46 @@
-import type { EditorQuestion, QuestionType } from "../models/Question";
+import type {
+    EditorQuestion,
+    QuestionType
+} from "../models/Question";
 
 export type RoundKind =
     | "empty"
     | "normal"
     | "nearest"
     | "mixed";
+
+type NormalQuestionType = Exclude<QuestionType, "nearest">;
+
+export type AnswerTypeLock =
+    | NormalQuestionType
+    | "mixed"
+    | null;
+
+export const hasEnteredAnswer = (
+    question: EditorQuestion
+): boolean => {
+    switch (question.type) {
+        case "standard":
+            return Boolean(
+                question.answer.answerText.trim() ||
+                question.answer.shortAnswer.trim()
+            );
+
+        case "multi":
+            return question.answers.answerOptions.some(
+                option => option.optionText.trim() !== ""
+            );
+
+        case "sequence":
+            return question.answer.optionsInOrder.some(
+                option => option.trim() !== ""
+            );
+
+        case "numerical":
+        case "nearest":
+            return question.answer.value != null;
+    }
+};
 
 export const getRoundKind = (
     questions: readonly EditorQuestion[]
@@ -13,19 +49,19 @@ export const getRoundKind = (
         return "empty";
     }
 
-    const hasNearest = questions.some(
-        question => question.type === "nearest"
-    );
+    const isNearestRound =
+        questions[0]!.type === "nearest";
 
-    const hasNormal = questions.some(
-        question => question.type !== "nearest"
-    );
-
-    if (hasNearest && hasNormal) {
-        return "mixed";
+    for (let index = 1; index < questions.length; index++) {
+        if (
+            (questions[index]!.type === "nearest") !==
+            isNearestRound
+        ) {
+            return "mixed";
+        }
     }
 
-    return hasNearest ? "nearest" : "normal";
+    return isNearestRound ? "nearest" : "normal";
 };
 
 export const canUseQuestionType = (
@@ -43,6 +79,7 @@ export const canUseQuestionType = (
             return questionType === "nearest";
 
         case "mixed":
+        default:
             return false;
     }
 };

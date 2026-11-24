@@ -1,87 +1,89 @@
-
 import JSZip from "jszip";
 
 import type { Round } from "../models/Question";
 import { getRoundKind } from "./roundHelpers";
 import { questionsToXml, nearestRoundToXml } from "../services/xmlService";
 
-const downloadFile = (
-    blob: Blob,
-    filename: string
-): void => {
-    const url = URL.createObjectURL(blob);
+const XML_MIME_TYPE = "application/xml;charset=utf-8";
+const ARCHIVE_NAME = "Quiz_Rounds.zip";
+const DOWNLOAD_URL_LIFETIME_MS = 1000;
 
-    const link = document.createElement("a");
+interface ExportFile {
+    filename: string;
+    xml: string;
+}
 
-    link.href = url;
-    link.download = filename;
+const createExportFile = (round: Round, index: number): ExportFile => {
+    const roundNumber = index + 1;
 
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    switch (getRoundKind(round.questions)) {
+        case "empty":
+            throw new Error(`Round ${roundNumber} has no questions.`);
 
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+        case "mixed":
+            throw new Error(
+                `Round ${roundNumber} contains a mixture of ` +
+                "nearest guess and normal questions."
+            );
+
+        case "nearest":
+            return {
+                filename: `Round_${roundNumber}.sqn`,
+                xml: nearestRoundToXml(round)
+            };
+
+        case "normal":
+            return {
+                filename: `Round_${roundNumber}.sqq`,
+                xml: questionsToXml(round.questions)
+            };
+
+        default:
+            throw new Error(`Round ${roundNumber} has an unsupported round type.`);
+    }
 };
 
-export const exportRounds = async (
-    rounds: Round[]
-): Promise<void> => {
+const downloadFile = (blob: Blob, filename: string): void => {
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    try {
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+    } finally {
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
+    }
+};
+
+export const exportRounds = async (rounds: Round[]): Promise<void> => {
     if (rounds.length === 0) {
         throw new Error("There are no rounds to export.");
     }
 
-    const files = rounds.map((round, index) => {
-        const roundKind = getRoundKind(round.questions);
-
-        if (roundKind === "empty") {
-            throw new Error(
-                `Round ${index + 1} has no questions.`
-            );
-        }
-
-        if (roundKind === "mixed") {
-            throw new Error(
-                `Round ${index + 1} contains a mixture of ` +
-                "nearest guess and normal questions."
-            );
-        }
-
-        const isNearest = roundKind === "nearest";
-
-        const extension = isNearest ? "sqn" : "sqq";
-
-        const xml = isNearest
-            ? nearestRoundToXml(round)
-            : questionsToXml(round.questions);
-
-        return {
-            filename: `Round_${index + 1}.${extension}`,
-            xml
-        };
-    });
+    const files = rounds.map(createExportFile);
 
     if (files.length === 1) {
-        const blob = new Blob([files[0].xml], {
-            type: "application/xml;charset=utf-8"
-        });
-
-        downloadFile(blob, files[0].filename);
+        downloadFile(
+            new Blob([files[0].xml], { type: XML_MIME_TYPE }),
+            files[0].filename
+        );
         return;
     }
 
     const zip = new JSZip();
 
-    files.forEach(file => {
-        zip.file(file.filename, file.xml);
-    });
+    for (const { filename, xml } of files) {
+        zip.file(filename, xml);
+    }
 
-    const zipBlob = await zip.generateAsync({
+    const blob = await zip.generateAsync({
         type: "blob",
         compression: "DEFLATE",
-        compressionOptions: {
-            level: 6
-        }
+        compressionOptions: { level: 6 }
     });
 
-    downloadFile(zipBlob, "Quiz_Rounds.zip");
+    downloadFile(blob, ARCHIVE_NAME);
 };

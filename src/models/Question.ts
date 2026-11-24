@@ -81,11 +81,42 @@ export interface Round {
     id: string;
     title: string;
     questions: EditorQuestion[];
-}
+};
 
-export const createEmptyQuestion = (
+
+type EditorQuestionOf<T extends QuestionType> =
+    Extract<EditorQuestion, { type: T }>;
+
+export function createEmptyQuestion():
+    EditorQuestionOf<"standard">;
+
+export function createEmptyQuestion(
+    type: "standard"
+): EditorQuestionOf<"standard">;
+
+export function createEmptyQuestion(
+    type: "multi"
+): EditorQuestionOf<"multi">;
+
+export function createEmptyQuestion(
+    type: "sequence"
+): EditorQuestionOf<"sequence">;
+
+export function createEmptyQuestion(
+    type: "numerical"
+): EditorQuestionOf<"numerical">;
+
+export function createEmptyQuestion(
+    type: "nearest"
+): EditorQuestionOf<"nearest">;
+
+export function createEmptyQuestion(
+    type: QuestionType
+): EditorQuestion;
+
+export function createEmptyQuestion(
     type: QuestionType = "standard"
-): EditorQuestion => {
+): EditorQuestion {
     const questionInfo: QuestionInfo = {
         id: 0,
         userView:

@@ -1,4 +1,3 @@
-
 import {
     Box,
     Button,
@@ -15,7 +14,8 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import VisuallyHiddenInput from '../components/VisuallyHiddenInput';
 import { type EditorQuestion, type QuestionType, createEmptyQuestion } from "../models/Question";
-import { type RoundKind, canUseQuestionType } from "../services/roundHelpers";
+import { type RoundKind, canUseQuestionType, hasEnteredAnswer } from "../services/roundHelpers";
+import { getShortAnswer } from '../services/answerService';
 import { fileToBase64 } from '../services/pictureService';
 
 interface QuestionInputProps {
@@ -34,12 +34,20 @@ export default function QuestionInput({
     onRemove
 }: QuestionInputProps) {
 
+    const canSelectType = (type: QuestionType): boolean => {
+        if (!canUseQuestionType(roundKind, type)) {
+            return false;
+        }
+
+        if (!hasEnteredAnswer(question)) {
+            return true;
+        }
+
+        return question.type === type;
+    };
+
     const handleTypeChange = (type: QuestionType | null) => {
-        if (
-            !type ||
-            type === question.type ||
-            !canUseQuestionType(roundKind, type)
-        ) {
+        if (!type || !canSelectType(type)) {
             return;
         }
 
@@ -86,6 +94,84 @@ export default function QuestionInput({
         });
     };
 
+
+    
+    const handleAnswerChange = (value: string): void => {
+        if (question.type === "standard") {
+            if (/^\d+$/.test(value)) {
+                const numericValue = Number(value);
+
+                if (!Number.isSafeInteger(numericValue)) {
+                    return;
+                }
+
+                onChange({
+                    ...question,
+                    type: "numerical",
+                    questionInfo: {
+                        ...question.questionInfo,
+                        userView: "numbers"
+                    },
+                    answer: {
+                        value: numericValue
+                    }
+                });
+
+                return;
+            }
+
+            onChange({
+                ...question,
+                answer: {
+                    ...question.answer,
+                    answerText: value,
+                    shortAnswer: getShortAnswer(value)
+                }
+            });
+
+            return;
+        }
+
+        if (question.type === "numerical") {
+            if (value === "") {
+                onChange({
+                    ...question,
+                    type: "standard",
+                    questionInfo: {
+                        ...question.questionInfo,
+                        userView: "letters"
+                    },
+                    answer: {
+                        answerText: "",
+                        shortAnswer: ""
+                    }
+                });
+
+                return;
+            }
+
+            if (!/^\d+$/.test(value)) {
+                return;
+            }
+
+            const numericValue = Number(value);
+
+            if (!Number.isSafeInteger(numericValue)) {
+                return;
+            }
+
+            onChange({
+                ...question,
+                answer: {
+                    ...question.answer,
+                    value: numericValue
+                }
+            });
+        }
+    };
+
+
+
     return (
         <Box
             sx={{
@@ -105,46 +191,89 @@ export default function QuestionInput({
 
                 <ToggleButtonGroup
                     value={question.type}
-                    exclusive
                     size="small"
+                    exclusive
                     onChange={(_, value: QuestionType | null) =>
                         handleTypeChange(value)
                     }
-                    sx={{ flexWrap: "wrap" }}
+
+                    sx={{
+                        width: "100%",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 1,
+
+                        "& .MuiToggleButtonGroup-grouped": {
+                            flex: "1 1 110px",
+                            minWidth: 0,
+                            margin: 0,
+                            border: 1,
+                            borderColor: "divider",
+                            borderRadius: "8px",
+                            textTransform: "none",
+                            whiteSpace: "nowrap",
+
+                            "&:first-of-type, &:last-of-type": {
+                                borderRadius: "8px"
+                            },
+
+                            "&:not(:first-of-type)": {
+                                marginLeft: 0,
+                                borderLeft: 1,
+                                borderColor: "divider",
+                                borderRadius: "8px"
+                            },
+
+                            "&.Mui-selected": {
+                                bgcolor: "primary.main",
+                                color: "primary.contrastText",
+                                borderColor: "primary.main",
+
+                                "&:hover": {
+                                    bgcolor: "primary.dark",
+                                    borderColor: "primary.dark"
+                                }
+                            },
+
+                            "&:not(:first-of-type).Mui-selected": {
+                                borderColor: "primary.main"
+                            }
+                        }
+                    }}
                 >
                     <ToggleButton
                         value="standard"
-                        disabled={!canUseQuestionType(roundKind, "standard")}
+                        disabled={!canSelectType("standard")}
                     >
-                        Standard
+                        Letters
                     </ToggleButton>
 
                     <ToggleButton
                         value="multi"
-                        disabled={!canUseQuestionType(roundKind, "multi")}
+                        disabled={!canSelectType("multi")}
                     >
                         Multiple Choice
                     </ToggleButton>
 
                     <ToggleButton
                         value="sequence"
-                        disabled={!canUseQuestionType(roundKind, "sequence")}
+                        disabled={!canSelectType("sequence")}
                     >
                         Sequence
                     </ToggleButton>
 
                     <ToggleButton
                         value="numerical"
-                        disabled={!canUseQuestionType(roundKind, "numerical")}
+                        disabled={!canSelectType("numerical")}
                     >
-                        Numerical
+                        Numbers
                     </ToggleButton>
 
                     <ToggleButton
                         value="nearest"
-                        disabled={!canUseQuestionType(roundKind, "nearest")}
+                        disabled={!canSelectType("nearest")}
                     >
-                        Nearest Guess
+                        Nearest Win
                     </ToggleButton>
                 </ToggleButtonGroup>
 
@@ -234,22 +363,30 @@ export default function QuestionInput({
 
                 <Divider />
 
-                {question.type === "standard" && (
-                    <Stack spacing={2}>
-                        <TextField
-                            label="Answer"
-                            value={question.answer.answerText}
-                            onChange={event =>
-                                onChange({
-                                    ...question,
-                                    answer: {
-                                        ...question.answer,
-                                        answerText: event.target.value
-                                    }
-                                })
+                
+                {(question.type === "standard" ||
+                    question.type === "numerical") && (
+                    <TextField
+                        label="Answer"
+                        fullWidth
+                        type="text"
+                        value={
+                            question.type === "numerical"
+                                ? question.answer.value ?? ""
+                                : question.answer.answerText
+                        }
+                        onChange={(event) =>
+                            handleAnswerChange(event.target.value)
+                        }
+                        slotProps={{
+                            htmlInput: {
+                                inputMode:
+                                    question.type === "numerical"
+                                        ? "numeric"
+                                        : "text"
                             }
-                        />
-                    </Stack>
+                        }}
+                    />
                 )}
 
                 {question.type === "multi" && (
@@ -389,17 +526,16 @@ export default function QuestionInput({
                     </Stack>
                 )}
 
-                {(question.type === "numerical" ||
-                    question.type === "nearest") && (
+                {(question.type === "nearest") && (
                     <TextField
                         type="number"
                         fullWidth
-                        label={
-                            question.type === "nearest"
-                                ? "Target Value"
-                                : "Correct Numerical Answer"
-                        }
+                        label="Target Value"
                         value={question.answer.value ?? ""}
+                        inputProps={{
+                            inputMode: "numeric",
+                            pattern: "[0-9]*"
+                        }}
                         onChange={event => {
                             const rawValue = event.target.value;
 

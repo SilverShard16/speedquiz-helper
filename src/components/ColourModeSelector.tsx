@@ -1,8 +1,7 @@
 import {
     ToggleButton,
     ToggleButtonGroup,
-    Stack,
-    Typography
+    Stack
 } from "@mui/material";
 
 import LightModeIcon from "@mui/icons-material/LightMode";

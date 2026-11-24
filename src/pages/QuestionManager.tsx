@@ -1,16 +1,21 @@
-
 import { useState } from "react";
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
+  Collapse,
+  Divider,
+  IconButton,
   Menu,
   MenuItem,
   Stack,
   TextField,
+  Tooltip,
   Typography
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 import QuestionInput from "../components/QuestionInput";
 import { type Round, type EditorQuestion, type QuestionType, createEmptyQuestion } from "../models/Question";
@@ -29,6 +34,9 @@ export default function QuestionManager() {
 
     const [exporting, setExporting] = useState(false);
     const [exportError, setExportError] = useState<string | null>(null);
+    const [collapsedRoundIds, setCollapsedRoundIds] = useState<Set<string>>(
+        () => new Set()
+    );
 
     const [addQuestionMenu, setAddQuestionMenu] = useState<{
         anchorEl: HTMLElement;
@@ -42,6 +50,30 @@ export default function QuestionManager() {
               getRoundKind(rounds[0].questions) === "nearest"
                 ? "Export SQN"
                 : "Export SQQ";
+
+    const toggleRound = (roundId: string): void => {
+        setCollapsedRoundIds(prev => {
+            const next = new Set(prev);
+
+            if (next.has(roundId)) {
+                next.delete(roundId);
+            } else {
+                next.add(roundId);
+            }
+
+            return next;
+        });
+    };
+
+    const collapseAllRounds = (): void => {
+        setCollapsedRoundIds(
+            new Set(rounds.map(round => round.id))
+        );
+    };
+
+    const expandAllRounds = (): void => {
+        setCollapsedRoundIds(new Set());
+    };
 
     const addRound = () => {
         setRounds(prev => [
@@ -85,9 +117,10 @@ export default function QuestionManager() {
                 });
                 break;
 
-            case "normal":
+            case "normal": {
                 addQuestion(roundId, "standard");
                 break;
+            }
 
             case "nearest":
                 addQuestion(roundId, "nearest");
@@ -100,7 +133,7 @@ export default function QuestionManager() {
                 break;
         }
     };
-
+    
     const addQuestion = (
         roundId: string,
         type: QuestionType
@@ -111,9 +144,12 @@ export default function QuestionManager() {
                     return round;
                 }
 
-                const roundKind = getRoundKind(round.questions);
-
-                if (!canUseQuestionType(roundKind, type)) {
+                if (
+                    !canUseQuestionType(
+                        getRoundKind(round.questions),
+                        type
+                    )
+                ) {
                     return round;
                 }
 
@@ -127,20 +163,26 @@ export default function QuestionManager() {
             })
         );
     };
-
+    
+    
     const updateQuestion = (
         roundId: string,
         updatedQuestion: EditorQuestion
     ) => {
         setRounds(prev =>
             prev.map(round => {
-                if (round.id !== roundId) return round;
+                if (round.id !== roundId) {
+                    return round;
+                }
 
                 const existing = round.questions.find(
-                    q => q.clientId === updatedQuestion.clientId
+                    question =>
+                        question.clientId === updatedQuestion.clientId
                 );
 
-                if (!existing) return round;
+                if (!existing) {
+                    return round;
+                }
 
                 if (
                     existing.type !== updatedQuestion.type &&
@@ -164,6 +206,8 @@ export default function QuestionManager() {
         );
     };
 
+
+
     const removeQuestion = (
         roundId: string,
         questionId: string
@@ -182,10 +226,16 @@ export default function QuestionManager() {
         );
     };
 
-    const removeRound = (roundId: string) => {
+    const removeRound = (roundId: string): void => {
         setRounds(prev =>
             prev.filter(round => round.id !== roundId)
         );
+
+        setCollapsedRoundIds(prev => {
+            const next = new Set(prev);
+            next.delete(roundId);
+            return next;
+        });
     };
     
     const handleExport = async () => {
@@ -226,73 +276,185 @@ export default function QuestionManager() {
             </Stack>
 
             <Stack spacing={2} sx={{ maxWidth: 660 }}>
-                {rounds.map((round, roundIndex) => {
-                  const roundKind = getRoundKind(round.questions);
-
-                  return (
-                    <Card
-                        key={round.id}
-                        sx={{
-                            width: "100%",
-                            borderRadius: 3
-                        }}
+                <Stack
+                    direction="row"
+                    spacing={1}
+                    justifyContent="flex-end"
+                >
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={collapseAllRounds}
+                        disabled={
+                            rounds.length === 0 ||
+                            rounds.every(round =>
+                                collapsedRoundIds.has(round.id)
+                            )
+                        }
                     >
-                        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-                            <Stack spacing={2}>
-                                <TextField
-                                    label={`Round ${roundIndex + 1}`}
-                                    value={round.title}
-                                    onChange={event =>
-                                        updateRoundTitle(
-                                            round.id,
-                                            event.target.value
-                                        )
-                                    }
-                                />
+                        Collapse All
+                    </Button>
 
-                                <Stack spacing={2}>
-                                    {round.questions.map((question, questionIndex) => (
-                                        <QuestionInput
-                                            key={question.clientId}
-                                            question={question}
-                                            questionNumber={questionIndex}
-                                            roundKind={getRoundKind(round.questions)}
-                                            onChange={updated =>
-                                                updateQuestion(round.id, updated)
-                                            }
-                                            onRemove={() =>
-                                                removeQuestion(round.id, question.clientId)
-                                            }
-                                        />
-                                    ))}
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={expandAllRounds}
+                        disabled={collapsedRoundIds.size === 0}
+                    >
+                        Expand All
+                    </Button>
+                </Stack>
+                {rounds.map((round, roundIndex) => {
+                    const roundKind = getRoundKind(round.questions);
+                    const isCollapsed = collapsedRoundIds.has(round.id);
 
-                                    <Stack
-                                        direction="row"
-                                        justifyContent="space-between"
-                                        alignItems="center"
+                    return (
+                        <Card
+                            key={round.id}
+                            sx={{
+                                width: "100%",
+                                borderRadius: 3
+                            }}
+                        >
+                            <Box sx={{ p: { xs: 2, sm: 3 } }}>
+                                <Stack
+                                    direction="row"
+                                    spacing={2}
+                                    alignItems="center"
+                                >
+                                    <TextField
+                                        label={`Round ${roundIndex + 1}`}
+                                        value={round.title}
+                                        size="small"
+                                        fullWidth
+                                        onChange={event =>
+                                            updateRoundTitle(
+                                                round.id,
+                                                event.target.value
+                                            )
+                                        }
+                                    />
+
+                                    <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{
+                                            whiteSpace: "nowrap"
+                                        }}
                                     >
-                                        <Button
-                                            variant="text"
-                                            color="error"
-                                            onClick={() => removeRound(round.id)}
-                                        >
-                                            Remove Round
-                                        </Button>
+                                        {round.questions.length} Questions
+                                    </Typography>
 
-                                        <Button
-                                            variant="text"
-                                            onClick={(event) =>
-                                                handleAddQuestion(event, round.id)
+                                    <Tooltip
+                                        title={
+                                            isCollapsed
+                                                ? "Expand Round"
+                                                : "Collapse Round"
+                                        }
+                                    >
+                                        <IconButton
+                                            onClick={() => toggleRound(round.id)}
+                                            aria-label={
+                                                isCollapsed
+                                                    ? "Expand round"
+                                                    : "Collapse round"
                                             }
+                                            aria-expanded={!isCollapsed}
+                                            aria-controls={`round-content-${round.id}`}
                                         >
-                                            + Add Question
-                                        </Button>
-                                    </Stack>
+                                            <ExpandMoreIcon
+                                                sx={{
+                                                    transform: isCollapsed
+                                                        ? "rotate(-90deg)"
+                                                        : "rotate(0deg)",
+                                                    transition: theme =>
+                                                        theme.transitions.create(
+                                                            "transform",
+                                                            {
+                                                                duration:
+                                                                    theme.transitions.duration.shortest
+                                                            }
+                                                        )
+                                                }}
+                                            />
+                                        </IconButton>
+                                    </Tooltip>
                                 </Stack>
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                )})}
+                            </Box>
+
+                            <Collapse
+                                in={!isCollapsed}
+                                timeout="auto"
+                            >
+                                <Divider />
+
+                                <CardContent
+                                    id={`round-content-${round.id}`}
+                                    sx={{
+                                        p: { xs: 2, sm: 3 },
+                                        "&:last-child": {
+                                            pb: { xs: 2, sm: 3 }
+                                        }
+                                    }}
+                                >
+                                    <Stack spacing={2}>
+                                        {round.questions.map(
+                                            (question, questionIndex) => (
+                                                <QuestionInput
+                                                    key={question.clientId}
+                                                    question={question}
+                                                    questionNumber={questionIndex}
+                                                    roundKind={roundKind}
+                                                    onChange={updated =>
+                                                        updateQuestion(
+                                                            round.id,
+                                                            updated
+                                                        )
+                                                    }
+                                                    onRemove={() =>
+                                                        removeQuestion(
+                                                            round.id,
+                                                            question.clientId
+                                                        )
+                                                    }
+                                                />
+                                            )
+                                        )}
+
+                                        <Stack
+                                            direction="row"
+                                            justifyContent="space-between"
+                                            alignItems="center"
+                                        >
+                                            <Button
+                                                variant="text"
+                                                color="error"
+                                                onClick={() =>
+                                                    removeRound(round.id)
+                                                }
+                                            >
+                                                Remove Round
+                                            </Button>
+
+                                            <Button
+                                                variant="text"
+                                                onClick={event =>
+                                                    handleAddQuestion(
+                                                        event,
+                                                        round.id
+                                                    )
+                                                }
+                                            >
+                                                + Add Question
+                                            </Button>
+                                        </Stack>
+                                    </Stack>
+                                </CardContent>
+                            </Collapse>
+                        </Card>
+                    );
+                })}
+
 
                 <Button
                     variant="text"

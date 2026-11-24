@@ -1,29 +1,32 @@
-import type { Question, StandardQuestion } from '../models/Question';
+
+import type { StandardQuestion } from '../models/Question';
 
 export function getShortAnswer(answerText: string): string {
-    let startsWithSkippedWord = answerText.indexOf("The ") === 0 || answerText.indexOf("A ") === 0;
-
-    if(startsWithSkippedWord) {
-        const firstSpaceIndex = answerText.indexOf(' ');
-        return answerText.substring(firstSpaceIndex + 1).trim().substring(0, 1);
+    if (
+        answerText.startsWith('The ') ||
+        answerText.startsWith('A ')
+    ) {
+        return answerText
+            .slice(answerText.indexOf(' ') + 1)
+            .trim()
+            .charAt(0);
     }
 
-    return answerText.substring(0, 1);
+    return answerText.charAt(0);
 }
 
-export function convertQuestionsToLastLetter(questions: StandardQuestion[]): StandardQuestion[] {
-    let newQuestions: StandardQuestion[] = [];
-
-    questions.forEach((question) => {
-        newQuestions.push({
-            type: "standard",
-            questionInfo: question.questionInfo,
-            answer: {
-                answerText: question.answer.answerText,
-                shortAnswer: question.answer.answerText.trim().substring(question.answer.answerText.length - 1).toUpperCase()
-            }
-        });
-    });
-
-    return newQuestions;
+export function convertQuestionsToLastLetter(
+    questions: StandardQuestion[]
+): StandardQuestion[] {
+    return questions.map(({ questionInfo, answer }) => ({
+        type: 'standard',
+        questionInfo,
+        answer: {
+            answerText: answer.answerText,
+            shortAnswer: answer.answerText
+                .trim()
+                .slice(-1)
+                .toUpperCase()
+        }
+    }));
 }

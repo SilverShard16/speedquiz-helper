@@ -1,24 +1,41 @@
 export function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
 
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('Could not read the image.'));
-        return;
-      }
+        const cleanup = (): void => {
+            reader.onload = null;
+            reader.onerror = null;
+            reader.onabort = null;
+        };
 
-      resolve(reader.result.slice(reader.result.indexOf(',') + 1));
-    };
+        reader.onload = () => {
+            const result = reader.result;
+            cleanup();
 
-    reader.onerror = () => {
-      reject(reader.error ?? new Error('Failed to read the file.'));
-    };
+            if (typeof result !== "string") {
+                reject(new Error("Could not read the image."));
+                return;
+            }
 
-    reader.onabort = () => {
-      reject(new Error('File reading was cancelled.'));
-    };
+            resolve(result.slice(result.indexOf(",") + 1));
+        };
 
-    reader.readAsDataURL(file);
-  });
+        reader.onerror = () => {
+            const error = reader.error;
+            cleanup();
+            reject(error ?? new Error("Failed to read the file."));
+        };
+
+        reader.onabort = () => {
+            cleanup();
+            reject(new Error("File reading was cancelled."));
+        };
+
+        try {
+            reader.readAsDataURL(file);
+        } catch (error) {
+            cleanup();
+            reject(error);
+        }
+    });
 }

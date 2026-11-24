@@ -1,29 +1,51 @@
 import JSZip from "jszip";
-import type { Question, QuestionInfo, MultipleChoiceQuestion, SequenceQuestion, StandardQuestion, NumericalQuestion, Round } from '../models/Question';
-import { getRoundKind } from '../services/roundHelpers';
 
-const escapeXml = (value: string): string => {
-    return value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
+import type {
+    Question,
+    QuestionInfo,
+    MultipleChoiceQuestion,
+    SequenceQuestion,
+    StandardQuestion,
+    NumericalQuestion,
+    Round
+} from "../models/Question";
+
+import { getRoundKind } from "../services/roundHelpers";
+
+const XML_ENTITIES: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;"
 };
+
+const escapeXml = (value: string): string =>
+    value.replace(/[&<>"']/g, character => XML_ENTITIES[character]);
 
 const xmlElement = (
     name: string,
     value: string | number,
     indent = 3
 ): string => {
-    const tabs = "\t".repeat(indent);
-    const text = escapeXml(String(value));
+    const prefix = "\t".repeat(indent);
+    const escaped = escapeXml(String(value));
 
-    return text === ""
-        ? `${tabs}<${name}/>`
-        : `${tabs}<${name}>${text}</${name}>`;
+    return escaped
+        ? `${prefix}<${name}>${escaped}</${name}>`
+        : `${prefix}<${name}/>`;
 };
 
+const pictureXml = (questionInfo: QuestionInfo): string | null => {
+    const original = questionInfo.pictureBaseString?.trim();
+
+    if (!original) {
+        return null;
+    }
+
+    const base64 = original.replace(/^data:[^,]+;base64,/i, "");
+    return xmlElement("picture", base64);
+};
 
 const questionToXml = (question: Question): string => {
     const { questionInfo } = question;
@@ -40,26 +62,26 @@ const questionToXml = (question: Question): string => {
 
         case "multi": {
             const answerOptions = question.answers.answerOptions;
+            let correctIndex = -1;
+            let correctCount = 0;
 
-            options = answerOptions.map(a => a.optionText);
+            options = answerOptions.map((answer, index) => {
+                if (answer.correct) {
+                    correctIndex = index;
+                    correctCount++;
+                }
 
-            const correctIndexes = answerOptions
-                .map((a, i) => a.correct ? i : -1)
-                .filter(i => i !== -1);
+                return answer.optionText;
+            });
 
-            if (
-                correctIndexes.length !== 1 ||
-                correctIndexes[0] >= 26
-            ) {
+            if (correctCount !== 1 || correctIndex >= 26) {
                 throw new Error(
                     `Question ${questionInfo.id} must have exactly ` +
                     "one correct answer among options A-Z."
                 );
             }
 
-            shortAnswer = String.fromCharCode(
-                65 + correctIndexes[0]
-            );
+            shortAnswer = String.fromCharCode(65 + correctIndex);
             break;
         }
 
@@ -81,17 +103,16 @@ const questionToXml = (question: Question): string => {
         }
 
         case "nearest":
-            throw new Error(
-                "Nearest guess questions are not yet supported."
-            );
+            throw new Error("Nearest guess questions are not yet supported.");
+
+        default:
+            throw new Error("Unrecognised question type.");
     }
 
     const userView =
-        question.type === "numerical"
-            ? "numbers"
-            : questionInfo.userView;
+        question.type === "numerical" ? "numbers" : questionInfo.userView;
 
-    const lines: string[] = [
+    const lines = [
         "\t\t<question>",
         xmlElement("user_view", userView),
         xmlElement("q", questionInfo.questionText),
@@ -102,25 +123,20 @@ const questionToXml = (question: Question): string => {
     if (options !== null) {
         lines.push("\t\t\t<options>");
 
-        options.forEach(option => {
+        for (const option of options) {
             lines.push(xmlElement("option", option, 4));
-        });
+        }
 
         lines.push("\t\t\t</options>");
     }
 
     if (question.type !== "numerical") {
-        lines.push(
-            xmlElement("info", questionInfo.info ?? "")
-        );
+        lines.push(xmlElement("info", questionInfo.info ?? ""));
     }
 
-    if (questionInfo.pictureBaseString?.trim()) {
-        const base64 = questionInfo.pictureBaseString
-            .trim()
-            .replace(/^data:[^,]+;base64,/i, "");
-
-        lines.push(xmlElement("picture", base64));
+    const picture = pictureXml(questionInfo);
+    if (picture !== null) {
+        lines.push(picture);
     }
 
     lines.push(
@@ -131,12 +147,8 @@ const questionToXml = (question: Question): string => {
     return lines.join("\n");
 };
 
-export const questionsToXml = (
-    questions: Question[]
-): string => {
-    const questionElements = questions
-        .map(questionToXml)
-        .join("\n");
+export const questionsToXml = (questions: Question[]): string => {
+    const questionElements = questions.map(questionToXml).join("\n");
 
     return `<?xml version="1.0" encoding="utf-8"?>
     <round>
@@ -144,11 +156,40 @@ export const questionsToXml = (
     <title>Speedquizzing Helper</title>
     <points_per_question>4</points_per_question>
     <go_wide>false</go_wide>
-	<speed_bonus>true</speed_bonus>
+\t<speed_bonus>true</speed_bonus>
     <questions>
 ${questionElements}
 </questions>
 </round>`;
+};
+
+const nearestQuestionToXml = (question: Round["questions"][number]): string => {
+    if (question.type !== "nearest") {
+        throw new Error("Invalid nearest guess question.");
+    }
+
+    const value = question.answer.value;
+
+    if (value === null || !Number.isFinite(value)) {
+        throw new Error(
+            "All nearest guess questions require a numerical answer."
+        );
+    }
+
+    const lines = [
+        "\t\t<question>",
+        xmlElement("q", question.questionInfo.questionText),
+        xmlElement("short_answer", String(value)),
+        xmlElement("long_answer", "")
+    ];
+
+    const picture = pictureXml(question.questionInfo);
+    if (picture !== null) {
+        lines.push(picture);
+    }
+
+    lines.push("\t\t</question>");
+    return lines.join("\n");
 };
 
 export const nearestRoundToXml = (round: Round): string => {
@@ -158,37 +199,9 @@ export const nearestRoundToXml = (round: Round): string => {
         );
     }
 
-    const questionElements = round.questions.map(question => {
-        if (question.type !== "nearest") {
-            throw new Error("Invalid nearest guess question.");
-        }
-
-        const value = question.answer.value;
-
-        if (value === null || !Number.isFinite(value)) {
-            throw new Error(
-                "All nearest guess questions require a numerical answer."
-            );
-        }
-
-        return [
-            "\t\t<question>",
-            xmlElement("q", question.questionInfo.questionText),
-            xmlElement("short_answer", String(value)),
-            xmlElement("long_answer", ""),
-            ...(question.questionInfo.pictureBaseString?.trim()
-                ? [
-                    xmlElement(
-                        "picture",
-                        question.questionInfo.pictureBaseString
-                            .trim()
-                            .replace(/^data:[^,]+;base64,/i, "")
-                    )
-                ]
-                : []),
-            "\t\t</question>"
-        ].join("\n");
-    }).join("\n");
+    const questionElements = round.questions
+        .map(nearestQuestionToXml)
+        .join("\n");
 
     return [
         '<?xml version="1.0" encoding="utf-8"?>',
@@ -206,98 +219,104 @@ export const nearestRoundToXml = (round: Round): string => {
 const getChild = (
     parent: Element,
     name: string
-): Element | undefined =>
-    Array.from(parent.children).find(
-        child => child.tagName === name
-    );
+): Element | undefined => {
+    for (
+        let child = parent.firstElementChild;
+        child !== null;
+        child = child.nextElementSibling
+    ) {
+        if (child.tagName === name) {
+            return child;
+        }
+    }
 
-const getText = (
-    parent: Element,
-    name: string
-): string =>
+    return undefined;
+};
+
+const getText = (parent: Element, name: string): string =>
     getChild(parent, name)?.textContent ?? "";
 
 const getOptions = (question: Element): string[] => {
-    const optionsElement = getChild(question, "options");
+    const container = getChild(question, "options");
 
-    if (!optionsElement) {
+    if (!container) {
         return [];
     }
 
-    return Array.from(optionsElement.children)
-        .filter(element => element.tagName === "option")
-        .map(element => element.textContent ?? "");
+    const options: string[] = [];
+
+    for (
+        let child = container.firstElementChild;
+        child !== null;
+        child = child.nextElementSibling
+    ) {
+        if (child.tagName === "option") {
+            options.push(child.textContent ?? "");
+        }
+    }
+
+    return options;
 };
 
-export const xmlToQuestions = (xml: string): Question[] => {
+const parseXmlDocument = (xml: string): XMLDocument => {
+    const source = xml.trim();
     const parser = new DOMParser();
 
-    const safeXml = xml.replace(/ & /g, " and ").trim();
+    let document = parser.parseFromString(source, "application/xml");
+    let parserError = document.querySelector("parsererror");
 
-    const document = parser.parseFromString(
-        safeXml,
-        "application/xml"
-    );
+    if (parserError) {
+        const legacySource = source.replace(/ & /g, " and ");
 
-    const parserError = document.querySelector("parsererror");
+        if (legacySource !== source) {
+            document = parser.parseFromString(
+                legacySource,
+                "application/xml"
+            );
+            parserError = document.querySelector("parsererror");
+        }
+    }
 
     if (parserError) {
         console.error("XML Parsing Error:", parserError.textContent);
-
-        throw new Error(
-            `Invalid XML: ${parserError.textContent}`
-        );
+        throw new Error(`Invalid XML: ${parserError.textContent}`);
     }
 
-    const questionsElement = document.querySelector("round > questions");
+    return document;
+};
 
-    if (!questionsElement) {
-        throw new Error("Could not find <questions> inside <round>.");
+const parseQuestion = (element: Element): Question => {
+    const idText = getText(element, "id").trim();
+    const id = Number(idText);
+
+    if (!idText || !Number.isSafeInteger(id)) {
+        throw new Error(`Invalid question ID: ${idText}`);
     }
 
-    const questionElements = Array.from(
-        questionsElement.children
-    ).filter(element => element.tagName === "question");
+    const userView = getText(element, "user_view").trim();
 
-    return questionElements.map(element => {
-        const idText = getText(element, "id").trim();
-        const id = Number(idText);
+    const questionInfo: QuestionInfo = {
+        id,
+        userView,
+        questionText: getText(element, "q"),
+        pictureBaseString: getText(element, "picture").trim(),
+        info: getText(element, "info")
+    };
 
-        if (!idText || !Number.isSafeInteger(id)) {
-            throw new Error(`Invalid question ID: ${idText}`);
-        }
-
-        const userView = getText(
-            element,
-            "user_view"
-        ).trim();
-
-        const questionInfo: QuestionInfo = {
-            id,
-            userView,
-            questionText: getText(element, "q"),
-            pictureBaseString: getText(
-                element,
-                "picture"
-            ).trim(),
-            info: getText(element, "info")
-        };
-
-        if (userView === "multi") {
+    switch (userView) {
+        case "multi": {
             const options = getOptions(element);
-
             const answerLetter = getText(
                 element,
                 "short_answer"
             ).trim().toUpperCase();
 
-            const correctIndex =
-                answerLetter.charCodeAt(0) - 65;
+            const correctIndex = answerLetter.charCodeAt(0) - 65;
 
             if (
                 !/^[A-Z]$/.test(answerLetter) ||
-                correctIndex >= options.length ||
-                correctIndex < 0
+                correctIndex < 0 ||
+                correctIndex >= options.length
             ) {
                 throw new Error(
                     `Invalid multiple-choice answer for question ${id}`
@@ -308,17 +327,15 @@ export const xmlToQuestions = (xml: string): Question[] => {
                 type: "multi",
                 questionInfo,
                 answers: {
-                    answerOptions: options.map(
-                        (optionText, index) => ({
-                            optionText,
-                            correct: index === correctIndex
-                        })
-                    )
+                    answerOptions: options.map((optionText, index) => ({
+                        optionText,
+                        correct: index === correctIndex
+                    }))
                 }
             } satisfies MultipleChoiceQuestion;
         }
 
-        if (userView === "sequence") {
+        case "sequence":
             return {
                 type: "sequence",
                 questionInfo,
@@ -326,9 +343,8 @@ export const xmlToQuestions = (xml: string): Question[] => {
                     optionsInOrder: getOptions(element)
                 }
             } satisfies SequenceQuestion;
-        }
 
-        if (userView === "numbers") {
+        case "numbers": {
             const answerText = getText(
                 element,
                 "short_answer"
@@ -336,7 +352,7 @@ export const xmlToQuestions = (xml: string): Question[] => {
 
             const value = Number(answerText);
 
-            if (answerText === "" || !Number.isFinite(value)) {
+            if (!answerText || !Number.isFinite(value)) {
                 throw new Error(
                     `Invalid numerical answer for question ${id}`
                 );
@@ -345,28 +361,39 @@ export const xmlToQuestions = (xml: string): Question[] => {
             return {
                 type: "numerical",
                 questionInfo,
-                answer: {
-                    value
-                }
+                answer: { value }
             } satisfies NumericalQuestion;
         }
 
-        return {
-            type: "standard",
-            questionInfo,
-            answer: {
-                answerText: getText(
-                    element,
-                    "long_answer"
-                ),
-                shortAnswer: getText(
-                    element,
-                    "short_answer"
-                )
-            }
-        } satisfies StandardQuestion;
-    });
+        default:
+            return {
+                type: "standard",
+                questionInfo,
+                answer: {
+                    answerText: getText(element, "long_answer"),
+                    shortAnswer: getText(element, "short_answer")
+                }
+            } satisfies StandardQuestion;
+    }
 };
+
+export const xmlToQuestions = (xml: string): Question[] => {
+    const document = parseXmlDocument(xml);
+
+    const questionsElement = document.querySelector("round > questions");
+
+    if (!questionsElement) {
+        throw new Error("Could not find <questions> inside <round>.");
+    }
+
+    return Array.from(questionsElement.children)
+        .filter(element => element.tagName === "question")
+        .map(parseQuestion);
+};
+
+export const importQuestionFile = async (
+    file: File
+): Promise<Question[]> => xmlToQuestions(await file.text());
 
 export const importQuestionFiles = async (
     files: FileList | File[]
@@ -374,121 +401,97 @@ export const importQuestionFiles = async (
     const selectedFiles = Array.from(files);
 
     if (selectedFiles.length !== 3) {
-        throw new Error(
-            "Please select exactly three XML files."
-        );
+        throw new Error("Please select exactly three XML/SQQ files.");
     }
 
-    const questionArrays = await Promise.all(
-        selectedFiles.map(async file => {
-            if (!file.name.toLowerCase().endsWith(".xml")) {
+    const results = await Promise.all(
+        selectedFiles.map(file => {
+            if (!/\.(xml|sqq)$/i.test(file.name)) {
                 throw new Error(
-                    `${file.name} is not an XML file.`
+                    `${file.name} is not an XML or SQQ file.`
                 );
             }
 
-            const xml = await file.text();
-
-            return xmlToQuestions(xml);
+            return importQuestionFile(file);
         })
     );
 
-    const combinedQuestions = questionArrays.flat();
-
-    return combinedQuestions;
+    return results.flat();
 };
 
-export const importQuestionFile = async (
-    file: File
-): Promise<Question[]> => {
-    const xml = await file.text();
-    return xmlToQuestions(xml);
+const DEFAULT_FILENAME = "questions";
+const XML_MIME_TYPE = "application/xml;charset=utf-8";
+
+const safeFileBaseName = (name: string): string => {
+    const cleaned = name
+        .trim()
+        .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+        .replace(/[. ]+$/g, "");
+
+    return cleaned || DEFAULT_FILENAME;
 };
 
+const downloadBlob = (blob: Blob, filename: string): void => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    try {
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+    } finally {
+        link.remove();
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+};
+
+const downloadSqq = (
+    questions: Question[],
+    roundName: string
+): void => {
+    const xml = questionsToXml(questions);
+    const blob = new Blob([xml], { type: XML_MIME_TYPE });
+
+    downloadBlob(blob, `${safeFileBaseName(roundName)}.sqq`);
+};
 
 export const exportQuestionFiles = async (
     questions: Question[],
     roundName: string
 ): Promise<void> => {
     const numberOfFiles = 4;
-    const questionsPerFile = Math.floor(questions.length / 4);
+    const questionsPerFile = Math.floor(questions.length / numberOfFiles);
+    const fileName = safeFileBaseName(roundName);
 
     const zip = new JSZip();
 
-    for (let i = 0; i < numberOfFiles; i++) {
-        const start = i * questionsPerFile;
-        const end = start + (i === numberOfFiles - 1 ? questions.length - start : questionsPerFile);
+    for (let index = 0; index < numberOfFiles; index++) {
+        const start = index * questionsPerFile;
 
-        const questionSubset = questions.slice(start, end);
+        const end = index === numberOfFiles - 1
+            ? questions.length
+            : start + questionsPerFile;
 
-        const xml = questionsToXml(questionSubset);
-
-        zip.file(`${roundName === "" ? "questions" : roundName}_${i + 1}.sqq`, xml);
+        const xml = questionsToXml(questions.slice(start, end));
+        zip.file(`${fileName}_${index + 1}.sqq`, xml);
     }
 
-    const zipBlob = await zip.generateAsync({
+    const archive = await zip.generateAsync({
         type: "blob",
         compression: "DEFLATE",
-        compressionOptions: {
-            level: 6
-        }
+        compressionOptions: { level: 6 }
     });
 
-    const url = URL.createObjectURL(zipBlob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${roundName === "" ? "questions" : roundName}.zip`;
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadBlob(archive, `${fileName}.zip`);
 };
 
 export const exportSingleRound = (
     questions: Question[],
     roundName: string
 ): void => {
-    const xml = questionsToXml(questions);
-
-    const blob = new Blob([xml], {
-        type: "application/xml;charset=utf-8"
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${roundName !== "" ? roundName : "questions"}.sqq`;
-
-    document.body.appendChild(link);
-
-    link.click();
-    link.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadSqq(questions, roundName);
 };
 
-
-export const downloadQuestionsXml = (questions: Question[], roundName: string) => {
-    const xml = questionsToXml(questions);
-
-    const blob = new Blob([xml], {
-        type: "application/xml;charset=utf-8"
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = roundName + ".sqq";
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    URL.revokeObjectURL(url);
-};
+export const downloadQuestionsXml = exportSingleRound;
