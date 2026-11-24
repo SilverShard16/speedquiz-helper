@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fileToBase64 } from "./pictureService";
+import { fileToBase64, getPictureSrc } from "./pictureService";
 
 const makeFile = (
     content: BlobPart = "Hello, world!",
@@ -327,5 +327,233 @@ describe("fileToBase64: synchronous failures", () => {
         const promise = fileToBase64(makeFile());
         await expect(promise).resolves.toBe("c3luYw==");
         expectCleanedUp(ControlledFileReader.instances[0]);
+    });
+});
+
+describe("getPictureSrc", () => {
+    describe("existing image data URLs", () => {
+        it.each([
+            {
+                description: "JPEG",
+                src: "data:image/jpeg;base64,/9j/AAAA"
+            },
+            {
+                description: "PNG",
+                src: "data:image/png;base64,iVBORw0KGgoAAA"
+            },
+            {
+                description: "GIF",
+                src: "data:image/gif;base64,R0lGODlh"
+            },
+            {
+                description: "WebP",
+                src: "data:image/webp;base64,UklGR123"
+            },
+            {
+                description: "SVG with plus in MIME subtype",
+                src: "data:image/svg+xml;base64,PHN2Zz4="
+            },
+            {
+                description: "custom MIME subtype containing dots and hyphens",
+                src: "data:image/x.custom-format;base64,AAAA"
+            },
+            {
+                description: "mixed-case scheme and MIME",
+                src: "DATA:IMAGE/PNG;BASE64,AAAA"
+            }
+        ])("returns an existing $description data URL unchanged", ({ src }) => {
+            expect(getPictureSrc(src)).toBe(src);
+        });
+
+        it("removes surrounding whitespace from an existing data URL", () => {
+            const src = "data:image/png;base64,AAAA";
+
+            expect(getPictureSrc(`  \n${src}\t  `)).toBe(src);
+        });
+
+        it("ignores the filename when a complete image data URL is supplied", () => {
+            const src = "data:image/png;base64,AAAA";
+
+            expect(getPictureSrc(src, "wrong.jpeg")).toBe(src);
+        });
+
+        it("preserves the Base64 payload verbatim within a recognised data URL", () => {
+            const src = "data:image/jpeg;base64,AA==+/BB==";
+
+            expect(getPictureSrc(src)).toBe(src);
+        });
+    });
+
+    describe("MIME detection from Base64 signatures", () => {
+        it.each([
+            {
+                description: "JPEG",
+                base64: "/9j/4AAQSkZJRg==",
+                mimeType: "image/jpeg"
+            },
+            {
+                description: "PNG",
+                base64: "iVBORw0KGgoAAA==",
+                mimeType: "image/png"
+            },
+            {
+                description: "GIF",
+                base64: "R0lGODlhAQABAAAA",
+                mimeType: "image/gif"
+            },
+            {
+                description: "WebP",
+                base64: "UklGRhIAAABXRUJQ",
+                mimeType: "image/webp"
+            }
+        ])("recognises a $description signature without a filename", ({ base64, mimeType }) => {
+            expect(getPictureSrc(base64)).toBe(`data:${mimeType};base64,${base64}`);
+        });
+
+        it.each([
+            { base64: "/9j/payload", filename: "picture.png", expected: "image/jpeg" },
+            { base64: "iVBORw0KGgoPAYLOAD", filename: "picture.jpeg", expected: "image/png" },
+            { base64: "R0lGODpayload", filename: "picture.webp", expected: "image/gif" },
+            { base64: "UklGRpayload", filename: "picture.gif", expected: "image/webp" }
+        ])("prioritises the signature over a conflicting $filename", ({ base64, filename, expected }) => {
+            expect(getPictureSrc(base64, filename)).toBe(
+                `data:${expected};base64,${base64}`
+            );
+        });
+
+        it("trims whitespace before detecting a signature", () => {
+            expect(getPictureSrc("  \n iVBORw0KGgo123  \t")).toBe(
+                "data:image/png;base64,iVBORw0KGgo123"
+            );
+        });
+
+        it("matches signatures case-sensitively", () => {
+            // Not recognised as the JPEG magic prefix; filename wins instead.
+            expect(getPictureSrc("/9J/payload", "picture.png")).toBe(
+                "data:image/png;base64,/9J/payload"
+            );
+        });
+    });
+
+    describe("MIME detection from filename extension", () => {
+        it.each([
+            { extension: "jpg", mimeType: "image/jpeg" },
+            { extension: "jpeg", mimeType: "image/jpeg" },
+            { extension: "png", mimeType: "image/png" },
+            { extension: "gif", mimeType: "image/gif" },
+            { extension: "webp", mimeType: "image/webp" },
+            { extension: "bmp", mimeType: "image/bmp" },
+            { extension: "avif", mimeType: "image/avif" },
+            { extension: "svg", mimeType: "image/svg+xml" }
+        ])("recognises .$extension", ({ extension, mimeType }) => {
+            expect(getPictureSrc("AQID", `photo.${extension}`)).toBe(
+                `data:${mimeType};base64,AQID`
+            );
+        });
+
+        it.each([
+            { filename: "photo.PNG", expected: "image/png" },
+            { filename: "photo.JpEg", expected: "image/jpeg" },
+            { filename: "photo.SVG", expected: "image/svg+xml" },
+            { filename: "folder.name.picture.WebP", expected: "image/webp" },
+            { filename: ".gif", expected: "image/gif" }
+        ])("recognises case-insensitive / multi-dot filename $filename", ({ filename, expected }) => {
+            expect(getPictureSrc("AQID", filename)).toBe(
+                `data:${expected};base64,AQID`
+            );
+        });
+
+        it("does not mistakenly use an earlier dot-separated segment as the extension", () => {
+            expect(getPictureSrc("AQID", "picture.png.backup")).toBe(
+                "data:image/jpeg;base64,AQID"
+            );
+        });
+
+        it("does not trim a filename's extension (current behaviour)", () => {
+            expect(getPictureSrc("AQID", "picture.png ")).toBe(
+                "data:image/jpeg;base64,AQID"
+            );
+        });
+    });
+
+    describe("fallbacks and unusual inputs", () => {
+        it.each([
+            { description: "no filename", filename: undefined },
+            { description: "empty filename", filename: "" },
+            { description: "name with no extension", filename: "picture" },
+            { description: "unknown extension", filename: "picture.xyz" },
+            { description: "trailing dot", filename: "picture." },
+            { description: "only a dot", filename: "." },
+            { description: "unsupported TIFF extension", filename: "picture.tiff" }
+        ])("defaults to JPEG for $description", ({ filename }) => {
+            expect(getPictureSrc("AQID", filename)).toBe(
+                "data:image/jpeg;base64,AQID"
+            );
+        });
+
+        it("defaults to JPEG when both the data and filename are empty", () => {
+            expect(getPictureSrc("", "")).toBe("data:image/jpeg;base64,");
+        });
+
+        it("trims a whitespace-only Base64 value to an empty payload", () => {
+            expect(getPictureSrc(" \n\t ", "photo.png")).toBe(
+                "data:image/png;base64,"
+            );
+        });
+
+        it("preserves internal whitespace rather than modifying the payload", () => {
+            expect(getPictureSrc("  AA AA\nBB  ", "photo.png")).toBe(
+                "data:image/png;base64,AA AA\nBB"
+            );
+        });
+
+        it("does not validate or decode Base64 data", () => {
+            expect(getPictureSrc("not valid base64!", "photo.png")).toBe(
+                "data:image/png;base64,not valid base64!"
+            );
+        });
+
+        it("does not recognise unrelated data URLs as image data URLs", () => {
+            const input = "data:text/plain;base64,SGVsbG8=";
+
+            expect(getPictureSrc(input)).toBe(
+                `data:image/jpeg;base64,${input}`
+            );
+        });
+
+        it("does not recognise image data URLs with extra MIME parameters", () => {
+            const input = "data:image/png;charset=utf-8;base64,AAAA";
+
+            expect(getPictureSrc(input)).toBe(
+                `data:image/jpeg;base64,${input}`
+            );
+        });
+
+        it.each([
+            { description: "null", value: null },
+            { description: "undefined", value: undefined },
+            { description: "a number", value: 42 },
+            { description: "an object", value: { base64: "AQID" } }
+        ])("throws for unsupported runtime input: $description", ({ value }) => {
+            // The public contract is string; this tests accidental untyped data.
+            expect(() => getPictureSrc(value as unknown as string)).toThrow();
+        });
+
+        it("produces the same output on repeated calls", () => {
+            const input = "iVBORw0KGgoAAAA";
+            const expected = "data:image/png;base64,iVBORw0KGgoAAAA";
+
+            expect(getPictureSrc(input, "wrong.jpg")).toBe(expected);
+            expect(getPictureSrc(input, "wrong.jpg")).toBe(expected);
+        });
+
+        it("preserves a large payload", () => {
+            const payload = "A".repeat(100_000);
+
+            const result = getPictureSrc(payload, "large.avif");
+
+            expect(result).toBe(`data:image/avif;base64,${payload}`);
+            expect(result.length).toBe(payload.length + "data:image/avif;base64,".length);
+        });
     });
 });

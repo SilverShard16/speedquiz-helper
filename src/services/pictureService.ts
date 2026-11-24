@@ -39,3 +39,47 @@ export function fileToBase64(file: File): Promise<string> {
         }
     });
 }
+
+
+export function getPictureSrc (
+    base64: string,
+    filename?: string
+): string {
+    const data = base64.trim();
+
+    if (/^data:image\/[\w.+-]+;base64,/i.test(data)) {
+        return data;
+    }
+
+    let mimeType: string;
+
+    if (data.startsWith("/9j/")) {
+        mimeType = "image/jpeg";
+    } else if (data.startsWith("iVBORw0KGgo")) {
+        mimeType = "image/png";
+    } else if (data.startsWith("R0lGOD")) {
+        mimeType = "image/gif";
+    } else if (data.startsWith("UklGR")) {
+        mimeType = "image/webp";
+    } else {
+        const extension = filename
+            ?.split(".")
+            .pop()
+            ?.toLowerCase();
+
+        const mimeTypes: Record<string, string> = {
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            gif: "image/gif",
+            webp: "image/webp",
+            bmp: "image/bmp",
+            avif: "image/avif",
+            svg: "image/svg+xml"
+        };
+
+        mimeType = mimeTypes[extension ?? ""] ?? "image/jpeg";
+    }
+
+    return `data:${mimeType};base64,${data}`;
+};

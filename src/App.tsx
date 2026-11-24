@@ -12,6 +12,7 @@ import AnswerList from './pages/AnswerList';
 import ThreeToFour from './pages/ThreeToFour';
 import RoundToLastLetter from './pages/RoundToLastLetter';
 import QuestionManager from './pages/QuestionManager';
+import RoundEditor from './pages/RoundEditor';
 import { ColourModeSelector } from './components/ColourModeSelector';
 
 function NotFound() {
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/threeToFour" element={<ThreeToFour />} />
           <Route path="/roundToLastLetter" element={<RoundToLastLetter />} />
           <Route path="/questionManager" element={<QuestionManager />} />
+          <Route path="/roundEditor" element={<RoundEditor />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>

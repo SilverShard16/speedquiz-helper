@@ -1,6 +1,11 @@
+import { useState } from "react";
 import {
     Box,
     Button,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
     Divider,
     Radio,
     Stack,
@@ -12,11 +17,12 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import VisuallyHiddenInput from '../components/VisuallyHiddenInput';
 import { type EditorQuestion, type QuestionType, createEmptyQuestion } from "../models/Question";
 import { type RoundKind, canUseQuestionType, hasEnteredAnswer } from "../services/roundHelpers";
 import { getShortAnswer } from '../services/answerService';
-import { fileToBase64 } from '../services/pictureService';
+import { fileToBase64, getPictureSrc } from '../services/pictureService';
 
 interface QuestionInputProps {
     question: EditorQuestion;
@@ -33,6 +39,11 @@ export default function QuestionInput({
     onChange,
     onRemove
 }: QuestionInputProps) {
+    const [picturePreviewOpen, setPicturePreviewOpen] = useState(false);
+
+    const hasPicture = Boolean(
+        question.questionInfo.pictureBaseString?.trim()
+    );
 
     const canSelectType = (type: QuestionType): boolean => {
         if (!canUseQuestionType(roundKind, type)) {
@@ -60,7 +71,9 @@ export default function QuestionInput({
                 ...newQuestion.questionInfo,
                 id: question.questionInfo.id,
                 questionText: question.questionInfo.questionText,
-                pictureBaseString: question.questionInfo.pictureBaseString
+                pictureBaseString: question.questionInfo.pictureBaseString,
+                pictureFileName: question.questionInfo.pictureFileName,
+                info: question.questionInfo.info
             }
         });
     };
@@ -278,6 +291,7 @@ export default function QuestionInput({
                 </ToggleButtonGroup>
 
 
+                
                 <Stack
                     direction="row"
                     spacing={2}
@@ -287,7 +301,9 @@ export default function QuestionInput({
                     <Tooltip
                         title={
                             question.questionInfo.pictureFileName ||
-                            "No picture uploaded"
+                            (hasPicture
+                                ? "Picture attached"
+                                : "No picture uploaded")
                         }
                     >
                         <Typography
@@ -300,11 +316,25 @@ export default function QuestionInput({
                             }}
                         >
                             {question.questionInfo.pictureFileName ||
-                                (question.questionInfo.pictureBaseString
+                                (hasPicture
                                     ? "Picture attached"
                                     : "No picture selected")}
                         </Typography>
                     </Tooltip>
+
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<VisibilityOutlinedIcon />}
+                        disabled={!hasPicture}
+                        onClick={() => setPicturePreviewOpen(true)}
+                        sx={{
+                            flexShrink: 0,
+                            whiteSpace: "nowrap"
+                        }}
+                    >
+                        View
+                    </Button>
 
                     <Button
                         component="label"
@@ -336,13 +366,14 @@ export default function QuestionInput({
                         color="error"
                         size="small"
                         startIcon={<DeleteOutlineIcon />}
-                        disabled={!question.questionInfo.pictureBaseString}
+                        disabled={!hasPicture}
                         onClick={handlePictureRemove}
                         sx={{ flexShrink: 0 }}
                     >
                         Clear
                     </Button>
                 </Stack>
+
 
                 <TextField
                     label="Question"
@@ -560,6 +591,62 @@ export default function QuestionInput({
                     Remove Question
                 </Button>
             </Stack>
+
+            <Dialog
+                open={picturePreviewOpen}
+                onClose={() => setPicturePreviewOpen(false)}
+                maxWidth="md"
+                fullWidth
+                aria-labelledby="picture-preview-title"
+            >
+                <DialogTitle id="picture-preview-title">
+                    {question.questionInfo.pictureFileName ||
+                        "Picture Preview"}
+                </DialogTitle>
+
+                <DialogContent
+                    dividers
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        p: 2
+                    }}
+                >
+                    {picturePreviewOpen && hasPicture && (
+                        <Box
+                            component="img"
+                            src={getPictureSrc(
+                                question.questionInfo.pictureBaseString,
+                                question.questionInfo.pictureFileName
+                            )}
+                            alt={
+                                question.questionInfo.pictureFileName ||
+                                "Question picture"
+                            }
+                            sx={{
+                                display: "block",
+                                maxWidth: "100%",
+                                maxHeight: "70vh",
+                                width: "auto",
+                                height: "auto",
+                                objectFit: "contain",
+                                borderRadius: 1
+                            }}
+                        />
+                    )}
+                </DialogContent>
+
+                <DialogActions>
+                    <Button
+                        onClick={() => setPicturePreviewOpen(false)}
+                        color="primary"
+                    >
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
         </Box>
     );
 }
