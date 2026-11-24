@@ -11,7 +11,11 @@ import type {
     QuestionInfo,
     Round,
     SequenceQuestion,
-    StandardQuestion
+    StandardQuestion,
+} from "../models/Question";
+
+import {
+    createEmptyQuestion
 } from "../models/Question";
 
 import {
@@ -243,6 +247,20 @@ describe("questionsToXml", () => {
         questionsToXml(original);
         expect(original).toEqual(before);
     });
+
+    it("throws an error for an unrecognised question type", () => {
+    const question = createEmptyQuestion("standard");
+
+    // Deliberately simulate invalid runtime data.
+    const invalidQuestion = {
+        ...question,
+        type: "unsupported"
+    } as unknown as Question;
+
+    expect(() =>
+        questionsToXml([invalidQuestion])
+    ).toThrow("Unrecognised question type.");
+});
 });
 
 describe("nearestRoundToXml", () => {

@@ -326,4 +326,143 @@ describe("hasEnteredAnswer", () => {
         expect(hasEnteredAnswer(first)).toBe(true);
         expect(hasEnteredAnswer(second)).toBe(false);
     });
+
+    it("returns false when all options are empty", () => {
+        const question = createEmptyQuestion("multi");
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it("returns false when all options contain whitespace", () => {
+        const question = createEmptyQuestion("multi");
+
+        question.answers.answerOptions.forEach(option => {
+            option.optionText = "   ";
+        });
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it.each([
+        { index: 0, answer: "London" },
+        { index: 1, answer: "Paris" },
+        { index: 2, answer: "Berlin" },
+        { index: 3, answer: "Madrid" }
+    ])(
+        "returns true when option $index contains an answer",
+        ({ index, answer }) => {
+            const question = createEmptyQuestion("multi");
+
+            question.answers.answerOptions[index].optionText = answer;
+
+            expect(hasEnteredAnswer(question)).toBe(true);
+        }
+    );
+
+    it("returns true when multiple options contain answers", () => {
+        const question = createEmptyQuestion("multi");
+
+        question.answers.answerOptions[0].optionText = "London";
+        question.answers.answerOptions[2].optionText = "Paris";
+
+        expect(hasEnteredAnswer(question)).toBe(true);
+    });
+
+    it("returns false after the last populated option is cleared", () => {
+        const question = createEmptyQuestion("multi");
+
+        question.answers.answerOptions[0].optionText = "London";
+
+        expect(hasEnteredAnswer(question)).toBe(true);
+
+        question.answers.answerOptions[0].optionText = "";
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it("returns false when there are no options", () => {
+        const question = createEmptyQuestion("multi");
+
+        question.answers.answerOptions = [];
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it("returns false when all sequence options are empty", () => {
+        const question = createEmptyQuestion("sequence");
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it("returns false when all options contain whitespace", () => {
+        const question = createEmptyQuestion("sequence");
+
+        question.answer.optionsInOrder = [" ", "   ", "\t"];
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it.each([
+        { index: 0, answer: "First" },
+        { index: 1, answer: "Second" },
+        { index: 2, answer: "Third" },
+        { index: 3, answer: "Fourth" }
+    ])(
+        "returns true when sequence position $index contains an answer",
+        ({ index, answer }) => {
+            const question = createEmptyQuestion("sequence");
+
+            // Ensure that the requested position exists.
+            question.answer.optionsInOrder = Array(
+                index + 1
+            ).fill("");
+
+            question.answer.optionsInOrder[index] = answer;
+
+            expect(hasEnteredAnswer(question)).toBe(true);
+        }
+    );
+
+    it("returns true when multiple sequence options contain answers", () => {
+        const question = createEmptyQuestion("sequence");
+
+        question.answer.optionsInOrder = [
+            "First",
+            "",
+            "Third"
+        ];
+
+        expect(hasEnteredAnswer(question)).toBe(true);
+    });
+
+    it("returns false when the final answer is cleared", () => {
+        const question = createEmptyQuestion("sequence");
+
+        question.answer.optionsInOrder = ["First", ""];
+
+        expect(hasEnteredAnswer(question)).toBe(true);
+
+        question.answer.optionsInOrder[0] = "";
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it("returns false when there are no sequence options", () => {
+        const question = createEmptyQuestion("sequence");
+
+        question.answer.optionsInOrder = [];
+
+        expect(hasEnteredAnswer(question)).toBe(false);
+    });
+
+    it("does not count selecting a correct option as entering an answer", () => {
+    const question = createEmptyQuestion("multi");
+
+    question.answers.answerOptions.forEach((option, index) => {
+        option.optionText = "";
+        option.correct = index === 0;
+    });
+
+    expect(hasEnteredAnswer(question)).toBe(false);
+});
 });
